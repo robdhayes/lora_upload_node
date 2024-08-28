@@ -1,69 +1,64 @@
 import io
+import torch
+from comfy.model_management import load_lora_model
+from comfy.custom_nodes import NODE_REGISTRY, CustomNodeBase
 
-class LoRAUploadNode:
-    def __init__(self):
-        # Store LoRA data and settings for up to three LoRA models
-        self.lora_data = [None, None, None]
-        self.lora_switches = [False, False, False]
-        self.lora_names = [None, None, None]
-        self.model_weights = [1.0, 1.0, 1.0]
-        self.clip_weights = [1.0, 1.0, 1.0]
+class LoRAUploadNode(CustomNodeBase):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "lora_file_1": ("FILE", {"label": "LoRA File 1"}),
+                "lora_1_switch": ("BOOL", {"default": True}),
+                "model_weight_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0}),
+                "clip_weight_1": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0}),
+                
+                "lora_file_2": ("FILE", {"label": "LoRA File 2"}),
+                "lora_2_switch": ("BOOL", {"default": False}),
+                "model_weight_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0}),
+                "clip_weight_2": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0}),
+                
+                "lora_file_3": ("FILE", {"label": "LoRA File 3"}),
+                "lora_3_switch": ("BOOL", {"default": False}),
+                "model_weight_3": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0}),
+                "clip_weight_3": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0}),
+            }
+        }
 
-    def upload_lora(self, index, file_content, file_name):
-        """Uploads a LoRA file to memory."""
-        self.lora_data[index] = io.BytesIO(file_content)
-        self.lora_names[index] = file_name
-        print(f"Loaded LoRA model {index + 1} ({file_name}) into system RAM.")
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_loras"
+    CATEGORY = "Custom Nodes"
 
-    def set_lora_switch(self, index, state):
-        """Enables or disables a LoRA."""
-        self.lora_switches[index] = state
-        status = "On" if state else "Off"
-        print(f"LoRA model {index + 1} is {status}.")
+    def load_loras(self, lora_file_1, lora_1_switch, model_weight_1, clip_weight_1,
+                          lora_file_2, lora_2_switch, model_weight_2, clip_weight_2,
+                          lora_file_3, lora_3_switch, model_weight_3, clip_weight_3):
+        
+        models = []
+        
+        # Load and apply LoRA models if enabled
+        if lora_1_switch and lora_file_1 is not None:
+            model_1 = self.load_lora_from_file(lora_file_1, model_weight_1, clip_weight_1)
+            models.append(model_1)
+        
+        if lora_2_switch and lora_file_2 is not None:
+            model_2 = self.load_lora_from_file(lora_file_2, model_weight_2, clip_weight_2)
+            models.append(model_2)
+        
+        if lora_3_switch and lora_file_3 is not None:
+            model_3 = self.load_lora_from_file(lora_file_3, model_weight_3, clip_weight_3)
+            models.append(model_3)
+        
+        return models
 
-    def set_model_weight(self, index, weight):
-        """Sets the model weight for a LoRA."""
-        self.model_weights[index] = weight
-        print(f"Model weight for LoRA model {index + 1} set to {weight}.")
+    def load_lora_from_file(self, file_path, model_weight, clip_weight):
+        """Loads a LoRA model from a file and applies the given weights."""
+        # Load the LoRA model from the given file path
+        lora_model = load_lora_model(file_path)
+        
+        # Apply model and clip weights
+        lora_model.adjust_weights(model_weight, clip_weight)
+        
+        return lora_model
 
-    def set_clip_weight(self, index, weight):
-        """Sets the clip weight for a LoRA."""
-        self.clip_weights[index] = weight
-        print(f"Clip weight for LoRA model {index + 1} set to {weight}.")
-
-    def process_loras(self):
-        """Processes the active LoRAs based on their settings."""
-        for i in range(3):
-            if self.lora_switches[i] and self.lora_data[i]:
-                # Simulate processing the LoRA with its weights
-                print(f"Processing LoRA model {i + 1}: {self.lora_names[i]}")
-                print(f"  - Model Weight: {self.model_weights[i]}")
-                print(f"  - Clip Weight: {self.clip_weights[i]}")
-            elif not self.lora_switches[i]:
-                print(f"LoRA model {i + 1} is disabled.")
-            else:
-                print(f"No LoRA data for model {i + 1}.")
-
-# Example usage of the node:
-node = LoRAUploadNode()
-
-# Simulate file uploads (this would be handled by the ComfyUI web interface)
-file_content_1 = b"binary content of LoRA file 1"
-file_name_1 = "LoRA_1.safetensors"
-node.upload_lora(0, file_content_1, file_name_1)
-
-file_content_2 = b"binary content of LoRA file 2"
-file_name_2 = "LoRA_2.safetensors"
-node.upload_lora(1, file_content_2, file_name_2)
-
-# Enable LoRAs and set weights
-node.set_lora_switch(0, True)
-node.set_model_weight(0, 0.8)
-node.set_clip_weight(0, 1.0)
-
-node.set_lora_switch(1, True)
-node.set_model_weight(1, 0.9)
-node.set_clip_weight(1, 0.7)
-
-# Process active LoRAs
-node.process_loras()
+# Register the node with ComfyUI
+NODE_REGISTRY.register_node("LoRAUploadNode", LoRAUploadNode)
